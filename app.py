@@ -3,6 +3,7 @@
 #----------------------------------------------------------------------------#
 
 import json
+from xmlrpc.client import FastParser
 import dateutil.parser
 import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
@@ -13,6 +14,7 @@ import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
+import sys
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -41,7 +43,7 @@ class Venue(db.Model):
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     website_link = db.Column(db.String(500))
-    looking_for_talent = db.Column(db.Boolean, nullable = False, default = False)
+    seeking_talent = db.Column(db.Boolean, nullable = False, default = False)
     seeking_description = db.Column(db.String(1000))
 
 
@@ -57,7 +59,7 @@ class Artist(db.Model):
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     website_link = db.Column(db.String(500))
-    looking_for_venue = db.Column(db.Boolean, nullable = False, default = False)
+    seeking_venue = db.Column(db.Boolean, nullable = False, default = False)
     seeking_description = db.Column(db.String(1000))
 
 
@@ -65,7 +67,7 @@ class Shows(db.Model):
     __tablename__ = 'Shows'
 
     id = db.Column(db.Integer, primary_key = True)
-    date = db.Column(db.DateTime, nullable = False)
+    start_time = db.Column(db.DateTime, nullable = False)
     venue = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable = False)
     artist = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable = False)
 
@@ -235,11 +237,37 @@ def create_venue_submission():
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
 
-  # on successful db insert, flash success
-  flash('Venue ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
+  error = False
+
+  try:
+    venue = Venue(
+      name = request.form.get('name'),
+      city = request.form.get('city'),
+      state = request.form.get('state'),
+      address = request.form.get('address'),
+      phone = request.form.get('phone', 'Not provided'),
+      genres = ', '.join(request.form.getlist('genres')),
+      image_link = request.form.get('image_link', 'Default immage link'), #TODO
+      facebook_link = request.form.get('facebook_link'),
+      website_link = request.form.get('website_link', 'No website available.'),
+      seeking_talent = True if request.form.get('seeking_talent', False) == 'y' else False,
+      seeking_description = request.form.get('seeking_description', '')
+    )
+    db.session.add(venue)
+    db.session.commit()
+  except:
+    db.session.rollback()
+    error = True
+    print(sys.exc_info())
+  finally:
+    db.session.close()
+  
+  if error:
+    flash('An error occurred. Venue ' + request.form['name'] + ' could not be listed.')
+  
+  else:
+    flash('Venue ' + request.form['name'] + ' was successfully listed!')
+
   return render_template('pages/home.html')
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
